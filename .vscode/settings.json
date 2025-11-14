@@ -1,0 +1,14 @@
+{
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "ms-python.black-formatter",
+  "black-formatter.args": ["--config", "pyproject.toml"],
+  "flake8.args": ["--toml-config", "pyproject.toml"],
+  "isort.args": ["--settings-path", "pyproject.toml"],
+  "python.analysis.extraPaths": ["./.venv/lib/python3.13/site-packages"],
+  "python.defaultInterpreterPath": "./.venv/bin/python",
+  "python.testing.pytestArgs": ["."],
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestEnabled": true,
+  // Note `python.analysis.typeCheckingMode` applies to pylance; for mypy, set to "off"
+  "python.analysis.typeCheckingMode": "basic"
+}

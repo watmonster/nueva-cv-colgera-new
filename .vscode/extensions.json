@@ -1,0 +1,16 @@
+{
+  "recommendations": [
+    "ms-python.debugpy",
+    "ms-python.python",
+    "ms-python.flake8",
+    "ms-python.black-formatter",
+    "ms-python.isort",
+    "ms-python.vscode-pylance",
+    "tamasfe.even-better-toml",
+    "yzhang.markdown-all-in-one",
+    "esbenp.prettier-vscode"
+    // Assumes we're uing pylance and not mypy.  To use mypy, use the following
+    // extension and *not* the ms-python.mypy-type-checker (which is buggy as of writing)
+    // "matangover.mypy",
+  ]
+}
