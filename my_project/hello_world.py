@@ -40,10 +40,10 @@ display(image)
 def corner_detection(img):
     gray_img = color.rgb2gray(img)
     corners = cv2.cornerHarris(gray_img, 4, 3, 0.04)
-    corners = cv2.dilate(corners, None)
-    image[corners > 0.01 * corners.max()] = [0, 0, 255]
-    # img_plus_corners = np.add(gray_img)
-    cv2.imshow("corners??", gray_img)
+    display(corners)
+    # corners = cv2.dilate(corners, None)
+    # image[corners > 0.01 * corners.max()] = [0, 0, 255]
+    # cv2.imshow("corners??", gray_img)
 
 
 corner_detection(image)
