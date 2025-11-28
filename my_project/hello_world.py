@@ -2,8 +2,8 @@
 
 # from example_module import a_function_from_another_module
 
-from skimage import io
-from skimage import color
+from skimage import io  # type: ignore
+from skimage import color  # type: ignore
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -38,8 +38,9 @@ display(image)
 
 
 def corner_detection(img):
-    gray_img = color.rgb2gray(img)
-    corners = cv2.cornerHarris(gray_img, 4, 3, 0.04)
+    gray_img = color.rgb2gray(img).astype("float32") / 255
+    corners = np.copy(gray_img)
+    cv2.cornerHarris(gray_img, 4, 3, 0.04, corners)  # noqa
     display(corners)
     # corners = cv2.dilate(corners, None)
     # image[corners > 0.01 * corners.max()] = [0, 0, 255]
