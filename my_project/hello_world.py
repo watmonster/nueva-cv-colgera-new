@@ -42,9 +42,11 @@ def corner_detection(img):
     corners = np.copy(gray_img)
     cv2.cornerHarris(gray_img, 4, 3, 0.04, corners)  # noqa
     display(corners)
+    return corners
     # corners = cv2.dilate(corners, None)
     # image[corners > 0.01 * corners.max()] = [0, 0, 255]
     # cv2.imshow("corners??", gray_img)
 
 
-corner_detection(image)
+image_corners = corner_detection(image)
+print(image_corners[1])
