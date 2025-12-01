@@ -41,12 +41,12 @@ def load_my_image():
 
 def make_grayscale(img):
     return color.rgb2gray(img).astype("float32")
-    
+
 
 def corner_detection(img):
     gray_img = make_grayscale(img)
     corners = np.copy(gray_img)
-    cv2.cornerHarris(gray_img, 4, 3, 0.04, corners)  # noqa
+    cv2.cornerHarris(gray_img, 5, 5, 0.06, corners)  # noqa
     # display(corners)
     return corners
     # corners = cv2.dilate(corners, None)
@@ -61,6 +61,28 @@ def clamp(img):
     return clamped_img
 
 
-# image = load_my_image()
-# image_corners = corner_detection(image)
-# print(image_corners[1])
+def get_corners_and_edges(img):
+    corners = corner_detection(img)
+    clamped_corners = clamp(corners)
+    clamped_edges = clamp(corners * (-1))
+    return clamped_corners, clamped_edges
+
+
+def colorize_corners_and_edges(img):
+    corners, edges = get_corners_and_edges(img)
+    # Create a 3-channel image with zeros
+    green_blue_image = np.zeros((img.shape[0], img.shape[1], 3), dtype=np.float32)
+
+    # Put the grayscale data into the green channel (channel 1)
+    green_blue_image[:, :, 1] = cv2.dilate(corners, None, iterations=5)  # type: ignore
+
+    green_blue_image[:, :, 2] = edges
+
+    return green_blue_image
+
+
+image = load_my_image()
+image_features = colorize_corners_and_edges(image)
+display(image)
+display(image_features)
+display(image + image_features)
