@@ -32,21 +32,35 @@ def display(img):
     plt.show()
 
 
-image_path = "./my_project/column_0011.png"
-image = load(image_path)
-display(image)
+def load_my_image():
+    image_path = "./my_project/column_0011.png"
+    image = load(image_path)
+    return image
+    # display(image)
 
+
+def make_grayscale(img):
+    return color.rgb2gray(img).astype("float32")
+    
 
 def corner_detection(img):
-    gray_img = color.rgb2gray(img).astype("float32") / 255
+    gray_img = make_grayscale(img)
     corners = np.copy(gray_img)
     cv2.cornerHarris(gray_img, 4, 3, 0.04, corners)  # noqa
-    display(corners)
+    # display(corners)
     return corners
     # corners = cv2.dilate(corners, None)
     # image[corners > 0.01 * corners.max()] = [0, 0, 255]
     # cv2.imshow("corners??", gray_img)
 
 
-image_corners = corner_detection(image)
-print(image_corners[1])
+def clamp(img):
+    clamped_img = np.copy(img)
+    clamped_img[clamped_img < 0] = 0
+    clamped_img[clamped_img > np.max(clamped_img) / 100] = 1
+    return clamped_img
+
+
+# image = load_my_image()
+# image_corners = corner_detection(image)
+# print(image_corners[1])
