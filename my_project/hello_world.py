@@ -46,7 +46,7 @@ def make_grayscale(img):
 def corner_detection(img):
     gray_img = make_grayscale(img)
     corners = np.copy(gray_img)
-    cv2.cornerHarris(gray_img, 5, 5, 0.06, corners)  # noqa
+    cv2.cornerHarris(gray_img, 5, 7, 0.06, corners)  # noqa
     # display(corners)
     return corners
     # corners = cv2.dilate(corners, None)
