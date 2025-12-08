@@ -32,21 +32,21 @@ def display(img):
     plt.show()
 
 
-def load_my_image():
-    image_path = "./my_project/column_0011.png"
-    image = load(image_path)
-    return image
-    # display(image)
+# def load_my_image():
+#     image_path = "./my_project/column_0011.png"
+#     image = load(image_path)
+#     return image
+#     # display(image)
 
 
 def make_grayscale(img):
     return color.rgb2gray(img).astype("float32")
 
 
-def corner_detection(img):
+def corner_detection(img, blocksize=5, ksize=7, k=0.06):
     gray_img = make_grayscale(img)
     corners = np.copy(gray_img)
-    cv2.cornerHarris(gray_img, 5, 7, 0.06, corners)  # noqa
+    cv2.cornerHarris(gray_img, blocksize, ksize, k, corners)  # noqa
     # display(corners)
     return corners
     # corners = cv2.dilate(corners, None)
@@ -61,15 +61,15 @@ def clamp(img):
     return clamped_img
 
 
-def get_corners_and_edges(img):
-    corners = corner_detection(img)
+def get_corners_and_edges(img, blocksize=5, ksize=7, k=0.06):
+    corners = corner_detection(img, blocksize, ksize, k)
     clamped_corners = clamp(corners)
     clamped_edges = clamp(corners * (-1))
     return clamped_corners, clamped_edges
 
 
-def colorize_corners_and_edges(img):
-    corners, edges = get_corners_and_edges(img)
+def colorize_corners_and_edges(img, blocksize=5, ksize=7, k=0.06):
+    corners, edges = get_corners_and_edges(img, blocksize, ksize, k)
     # Create a 3-channel image with zeros
     green_blue_image = np.zeros((img.shape[0], img.shape[1], 3), dtype=np.float32)
 
@@ -81,8 +81,25 @@ def colorize_corners_and_edges(img):
     return green_blue_image
 
 
-image = load_my_image()
-image_features = colorize_corners_and_edges(image)
-display(image)
-display(image_features)
-display(image + image_features)
+def load_real_image():
+    return load("./my_project/real_shapes.png")
+
+
+def load_test_image():
+    return load("./my_project/test_shapes.png")[:, :, 0:3]
+
+
+def find_corner_orientation(image, corner_loc, look_dist=5):
+    print("hello world")
+
+
+# FUTURE DAV: for test image, use blocksize=3, ksize=3, k=0.1 for starters
+
+
+if __name__ == "__main__":
+    image_path = "./my_project/real_shapes.png"
+    image = load(image_path)
+    image_features = colorize_corners_and_edges(image)
+    display(image)
+    display(image_features)
+    display(image + image_features)
