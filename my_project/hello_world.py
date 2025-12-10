@@ -93,6 +93,23 @@ def find_corner_orientation(image, corner_loc, look_dist=5):
     print("hello world")
 
 
+def find_centroids(harris_result):
+    step1 = cv2.dilate(harris_result, None, iterations=5)  # type: ignore
+    _, step2 = cv2.threshold(step1, 0.01 * np.max(step1), 255, 0)
+    step3 = np.uint8(step2)
+    centroids = cv2.connectedComponentsWithStats(step3)[3]  # type: ignore
+    revised_centroids = centroids[1:]  # assume the centroid of the background is first?? (we think)
+    return revised_centroids
+
+
+def make_circles(img, pixel_locs):
+    pixel_locs_list = pixel_locs.tolist()
+    for pix in pixel_locs_list:
+        tuple_pix = (int(pix[0]), int(pix[1]))
+        img = cv2.circle(img, tuple_pix, 20, (255, 0, 0), 3)
+    return img
+
+
 # FUTURE DAV: for test image, use blocksize=3, ksize=3, k=0.1 for starters
 
 
