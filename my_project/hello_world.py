@@ -32,26 +32,19 @@ def display(img):
     plt.show()
 
 
-# def load_my_image():
-#     image_path = "./my_project/column_0011.png"
-#     image = load(image_path)
-#     return image
-#     # display(image)
-
-
 def make_grayscale(img):
     return color.rgb2gray(img).astype("float32")
+
+
+def rc_to_xy(coords_list):
+    return (int(round(coords_list[1])), int(round(coords_list[0])))
 
 
 def corner_detection(img, blocksize=5, ksize=7, k=0.06):
     gray_img = make_grayscale(img)
     corners = np.copy(gray_img)
     cv2.cornerHarris(gray_img, blocksize, ksize, k, corners)  # noqa
-    # display(corners)
     return corners
-    # corners = cv2.dilate(corners, None)
-    # image[corners > 0.01 * corners.max()] = [0, 0, 255]
-    # cv2.imshow("corners??", gray_img)
 
 
 def clamp(img):
@@ -89,8 +82,34 @@ def load_test_image():
     return load("./my_project/test_shapes.png")[:, :, 0:3]
 
 
-def find_corner_orientation(image, corner_loc, look_dist=5):
-    print("hello world")
+quads = {1: [-1, 1], 2: [-1, -1], 3: [1, -1], 4: [1, 1]}
+
+
+def avg_pix_brightness(img, pix_loc, quad_num, radius):
+    gray_img = make_grayscale(img)
+    total_brightness = 0
+    pix_loc_row = int(round(pix_loc[0]))
+    pix_loc_col = int(round(pix_loc[1]))
+    row_mult = quads[quad_num][0]
+    col_mult = quads[quad_num][1]
+    for row in range(radius):
+        for col in range(radius):
+            check_row = int(pix_loc_row + row * row_mult)
+            check_col = int(pix_loc_col + col * col_mult)
+            current_brightness = gray_img[check_row, check_col]
+            total_brightness += current_brightness
+    return total_brightness / (radius**2)
+
+
+def find_corner_orientation(img, corner_loc, radius=5):
+    quad_1_brightness = avg_pix_brightness(img, corner_loc, 1, radius)
+    quad_2_brightness = avg_pix_brightness(img, corner_loc, 2, radius)
+    quad_3_brightness = avg_pix_brightness(img, corner_loc, 3, radius)
+    quad_4_brightness = avg_pix_brightness(img, corner_loc, 4, radius)
+    brightness_list = [quad_1_brightness, quad_2_brightness, quad_3_brightness, quad_4_brightness]
+    max_brightness = max(brightness_list)
+    max_quad = brightness_list.index(max_brightness) + 1
+    return max_quad
 
 
 def find_centroids(harris_result):
@@ -99,18 +118,98 @@ def find_centroids(harris_result):
     step3 = np.uint8(step2)
     centroids = cv2.connectedComponentsWithStats(step3)[3]  # type: ignore
     revised_centroids = centroids[1:]  # assume the centroid of the background is first?? (we think)
-    return revised_centroids
+    flipped_centroids = [[float(centroid[1]), float(centroid[0])] for centroid in revised_centroids]
+    return flipped_centroids
+
+
+def centroids_and_orientations(img, centroids, radius=5):
+    centroids_and_quads = []
+    for centroid in centroids:
+        # print(centroid)
+        # print(find_corner_orientation(img, centroid, radius))
+        # print(centroid.append(find_corner_orientation(img, centroid, radius)))
+        centroids_and_quads.append([centroid[0], centroid[1], find_corner_orientation(img, centroid, radius)])
+    return centroids_and_quads
 
 
 def make_circles(img, pixel_locs):
-    pixel_locs_list = pixel_locs.tolist()
-    for pix in pixel_locs_list:
-        tuple_pix = (int(pix[0]), int(pix[1]))
-        img = cv2.circle(img, tuple_pix, 20, (255, 0, 0), 3)
-    return img
+    circles_img = np.copy(img)
+    for pix in pixel_locs:
+        tuple_pix = rc_to_xy(pix)
+        circles_img = cv2.circle(circles_img, tuple_pix, 20, (255, 0, 0), 3)
+    return circles_img
 
 
-# FUTURE DAV: for test image, use blocksize=3, ksize=3, k=0.1 for starters
+def make_orientation_marks(img, pixel_locs_orientations):
+    orientations_img = np.copy(img)
+    for pix in pixel_locs_orientations:
+        tuple_pix = rc_to_xy(pix)
+        line_end = (tuple_pix[0] + quads[pix[2]][1] * 30, tuple_pix[1] + quads[pix[2]][0] * 30)
+        orientations_img = cv2.line(orientations_img, tuple_pix, line_end, (255, 0, 0), 3)
+    return orientations_img
+
+
+def find_one_rectangle(oriented_centroids):  # noqa
+    rectangle = []
+    first_corner = []
+    for corner in oriented_centroids:
+        if corner[2] == 4:
+            first_corner = corner
+            break
+    rectangle.append(first_corner)
+    closest_quad_3 = oriented_centroids[0]
+    for corner in oriented_centroids:
+        if corner[2] == 3 and closest_quad_3[2] != 3:
+            if corner[1] > first_corner[1]:
+                if corner[0] + 2 >= first_corner[0] and corner[0] - 2 <= first_corner[0]:
+                    closest_quad_3 = corner
+        elif corner[2] == 3:
+            if corner[1] > first_corner[1]:
+                if corner[0] + 2 >= first_corner[0] and corner[0] - 2 <= first_corner[0]:
+                    if corner[0] < closest_quad_3[0]:
+                        closest_quad_3 = corner
+    rectangle.append(closest_quad_3)
+    closest_quad_1 = oriented_centroids[0]
+    for corner in oriented_centroids:
+        if corner[2] == 1 and closest_quad_1[2] != 1:
+            if corner[0] > first_corner[0]:
+                if corner[1] + 2 >= first_corner[1] and corner[1] - 2 <= first_corner[1]:
+                    closest_quad_1 = corner
+        elif corner[2] == 1:
+            if corner[0] > first_corner[0]:
+                if corner[1] + 2 >= first_corner[1] and corner[1] - 2 <= first_corner[1]:
+                    if corner[1] < closest_quad_1[1]:
+                        closest_quad_1 = corner
+    rectangle.append(closest_quad_1)
+    the_quad_2 = oriented_centroids[0]
+    for corner in oriented_centroids:
+        if corner[2] == 2:
+            if corner[0] + 2 >= closest_quad_1[0] and corner[0] - 2 <= closest_quad_1[0]:
+                if corner[1] + 2 >= closest_quad_3[1] and corner[1] - 2 <= closest_quad_3[1]:
+                    the_quad_2 = corner
+    rectangle.append(the_quad_2)
+    reordered_rectangle = [rectangle[0], rectangle[1], rectangle[3], rectangle[2]]
+    return reordered_rectangle
+
+
+def find_all_rectangles(oriented_centroids):
+    rectangles = []
+    remaining_centroids = oriented_centroids
+    for i in range(int(round(len(oriented_centroids) / 4))):
+        new_rectangle = find_one_rectangle(remaining_centroids)
+        rectangles.append(new_rectangle)
+        remaining_centroids = [point for point in remaining_centroids if point not in new_rectangle]
+    return rectangles
+
+
+def draw_rectangles(img, oriented_centroids):
+    rectangles_img = np.copy(img)
+    rectangles = find_all_rectangles(oriented_centroids)
+    for rect in rectangles:
+        tuple_top_left = rc_to_xy(rect[0])
+        tuple_bottom_right = rc_to_xy(rect[2])
+        rectangles_img = cv2.rectangle(rectangles_img, tuple_top_left, tuple_bottom_right, (255, 0, 0), 3)
+    return rectangles_img
 
 
 if __name__ == "__main__":
