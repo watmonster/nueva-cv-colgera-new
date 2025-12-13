@@ -40,7 +40,7 @@ def rc_to_xy(coords_list):
     return (int(round(coords_list[1])), int(round(coords_list[0])))
 
 
-def corner_detection(img, blocksize=5, ksize=7, k=0.06):
+def corner_detection(img, blocksize=3, ksize=5, k=0.04):
     gray_img = make_grayscale(img)
     corners = np.copy(gray_img)
     cv2.cornerHarris(gray_img, blocksize, ksize, k, corners)  # noqa
@@ -49,19 +49,19 @@ def corner_detection(img, blocksize=5, ksize=7, k=0.06):
 
 def clamp(img):
     clamped_img = np.copy(img)
-    clamped_img[clamped_img < 0] = 0
-    clamped_img[clamped_img > np.max(clamped_img) / 100] = 1
+    clamped_img[clamped_img < np.max(clamped_img) / 20] = 0
+    clamped_img[clamped_img >= np.max(clamped_img) / 20] = 1
     return clamped_img
 
 
-def get_corners_and_edges(img, blocksize=5, ksize=7, k=0.06):
+def get_corners_and_edges(img, blocksize=3, ksize=5, k=0.04):
     corners = corner_detection(img, blocksize, ksize, k)
     clamped_corners = clamp(corners)
     clamped_edges = clamp(corners * (-1))
     return clamped_corners, clamped_edges
 
 
-def colorize_corners_and_edges(img, blocksize=5, ksize=7, k=0.06):
+def colorize_corners_and_edges(img, blocksize=3, ksize=5, k=0.04):
     corners, edges = get_corners_and_edges(img, blocksize, ksize, k)
     # Create a 3-channel image with zeros
     green_blue_image = np.zeros((img.shape[0], img.shape[1], 3), dtype=np.float32)
@@ -87,6 +87,8 @@ quads = {1: [-1, 1], 2: [-1, -1], 3: [1, -1], 4: [1, 1]}
 
 def avg_pix_brightness(img, pix_loc, quad_num, radius):
     gray_img = make_grayscale(img)
+    gray_clamped_img = clamp(gray_img)
+    # display(gray_clamped_img)
     total_brightness = 0
     pix_loc_row = int(round(pix_loc[0]))
     pix_loc_col = int(round(pix_loc[1]))
@@ -94,14 +96,15 @@ def avg_pix_brightness(img, pix_loc, quad_num, radius):
     col_mult = quads[quad_num][1]
     for row in range(radius):
         for col in range(radius):
-            check_row = int(pix_loc_row + row * row_mult)
-            check_col = int(pix_loc_col + col * col_mult)
-            current_brightness = gray_img[check_row, check_col]
-            total_brightness += current_brightness
+            if row != 0 and col != 0:
+                check_row = int(pix_loc_row + row * row_mult)
+                check_col = int(pix_loc_col + col * col_mult)
+                current_brightness = gray_clamped_img[check_row, check_col]
+                total_brightness += current_brightness
     return total_brightness / (radius**2)
 
 
-def find_corner_orientation(img, corner_loc, radius=5):
+def find_corner_orientation(img, corner_loc, radius=10):
     quad_1_brightness = avg_pix_brightness(img, corner_loc, 1, radius)
     quad_2_brightness = avg_pix_brightness(img, corner_loc, 2, radius)
     quad_3_brightness = avg_pix_brightness(img, corner_loc, 3, radius)
@@ -145,7 +148,7 @@ def make_orientation_marks(img, pixel_locs_orientations):
     for pix in pixel_locs_orientations:
         tuple_pix = rc_to_xy(pix)
         line_end = (tuple_pix[0] + quads[pix[2]][1] * 30, tuple_pix[1] + quads[pix[2]][0] * 30)
-        orientations_img = cv2.line(orientations_img, tuple_pix, line_end, (255, 0, 0), 3)
+        orientations_img = cv2.line(orientations_img, tuple_pix, line_end, (255, 0, 0), 5)
     return orientations_img
 
 
@@ -211,6 +214,33 @@ def draw_rectangles(img, oriented_centroids):
         rectangles_img = cv2.rectangle(rectangles_img, tuple_top_left, tuple_bottom_right, (255, 0, 0), 3)
     return rectangles_img
 
+
+def run_a_test(img, blocksize, ksize, k):
+    corners = get_corners_and_edges(img, blocksize, ksize, k)[0]
+    centroids = find_centroids(corners)
+    oriented_corners = centroids_and_orientations(img, centroids)
+    circled_corners = make_circles(img, centroids)
+    oriented_circled_corners = make_orientation_marks(circled_corners, oriented_corners)
+    display(oriented_circled_corners)
+
+
+def run_all_the_tests(img):
+    for blocksize in range(3, 10):
+        for ksize in [3, 5, 7]:
+            for k in [0.04, 0.05, 0.06]:
+                run_a_test(img, blocksize, ksize, k)
+                print([blocksize, ksize, k])
+
+
+# things that work:
+# 4, 7. 0.06
+# 5, 3, 0.06
+# 5, 5, 0.06
+# 5, 7, 0.06
+# 6, 3, 0.06
+# 6, 7, 0.06
+# 7, 3, 0.06
+# 7, 5, 0.06
 
 if __name__ == "__main__":
     image_path = "./my_project/real_shapes.png"
