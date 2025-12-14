@@ -152,14 +152,19 @@ def make_orientation_marks(img, pixel_locs_orientations):
     return orientations_img
 
 
-def find_one_rectangle(oriented_centroids):  # noqa
+def find_one_rectangle(oriented_centroids, first_corner):  # noqa
+    # print(oriented_centroids)
     rectangle = []
-    first_corner = []
-    for corner in oriented_centroids:
-        if corner[2] == 4:
-            first_corner = corner
-            break
+    # first_corner = []
+    # for corner in oriented_centroids:
+    #     if corner[2] == 4:
+    #         first_corner = corner
+    #         break
+    # if not first_corner:
+    #     print("couldn't find rectangle: quad 4 missing")
+    #     return False
     rectangle.append(first_corner)
+    print(first_corner)
     closest_quad_3 = oriented_centroids[0]
     for corner in oriented_centroids:
         if corner[2] == 3 and closest_quad_3[2] != 3:
@@ -171,6 +176,9 @@ def find_one_rectangle(oriented_centroids):  # noqa
                 if corner[0] + 2 >= first_corner[0] and corner[0] - 2 <= first_corner[0]:
                     if corner[0] < closest_quad_3[0]:
                         closest_quad_3 = corner
+    if closest_quad_3[2] != 3:
+        print("couldn't find rectangle: quad 3 missing")
+        return rectangle
     rectangle.append(closest_quad_3)
     closest_quad_1 = oriented_centroids[0]
     for corner in oriented_centroids:
@@ -183,6 +191,9 @@ def find_one_rectangle(oriented_centroids):  # noqa
                 if corner[1] + 2 >= first_corner[1] and corner[1] - 2 <= first_corner[1]:
                     if corner[1] < closest_quad_1[1]:
                         closest_quad_1 = corner
+    if closest_quad_1[2] != 1:
+        print("couldn't find rectangle: quad 1 missing")
+        return rectangle
     rectangle.append(closest_quad_1)
     the_quad_2 = oriented_centroids[0]
     for corner in oriented_centroids:
@@ -190,6 +201,9 @@ def find_one_rectangle(oriented_centroids):  # noqa
             if corner[0] + 2 >= closest_quad_1[0] and corner[0] - 2 <= closest_quad_1[0]:
                 if corner[1] + 2 >= closest_quad_3[1] and corner[1] - 2 <= closest_quad_3[1]:
                     the_quad_2 = corner
+    if the_quad_2[2] != 2:
+        print("couldn't find rectangle: quad 2 missing")
+        return rectangle
     rectangle.append(the_quad_2)
     reordered_rectangle = [rectangle[0], rectangle[1], rectangle[3], rectangle[2]]
     return reordered_rectangle
@@ -197,11 +211,16 @@ def find_one_rectangle(oriented_centroids):  # noqa
 
 def find_all_rectangles(oriented_centroids):
     rectangles = []
-    remaining_centroids = oriented_centroids
-    for i in range(int(round(len(oriented_centroids) / 4))):
-        new_rectangle = find_one_rectangle(remaining_centroids)
-        rectangles.append(new_rectangle)
-        remaining_centroids = [point for point in remaining_centroids if point not in new_rectangle]
+    # remaining_centroids = oriented_centroids
+    for corner in oriented_centroids:
+        if corner[2] == 4:
+            new_rectangle = find_one_rectangle(oriented_centroids, corner)
+            if not new_rectangle:
+                print("couldn't find more rectangles")
+                print(rectangles)
+                return rectangles
+            rectangles.append(new_rectangle)
+            # remaining_centroids = [point for point in remaining_centroids if point not in new_rectangle]
     return rectangles
 
 
@@ -209,9 +228,14 @@ def draw_rectangles(img, oriented_centroids):
     rectangles_img = np.copy(img)
     rectangles = find_all_rectangles(oriented_centroids)
     for rect in rectangles:
-        tuple_top_left = rc_to_xy(rect[0])
-        tuple_bottom_right = rc_to_xy(rect[2])
-        rectangles_img = cv2.rectangle(rectangles_img, tuple_top_left, tuple_bottom_right, (255, 0, 0), 3)
+        if len(rect) == 4:
+            tuple_top_left = rc_to_xy(rect[0])
+            tuple_bottom_right = rc_to_xy(rect[2])
+            rectangles_img = cv2.rectangle(rectangles_img, tuple_top_left, tuple_bottom_right, (255, 0, 0), 3)
+        if len(rect) == 3:
+            all_the_points = np.array([list(rc_to_xy(point)) for point in rect]).reshape((-1, 1, 2))
+            # print(all_the_points)
+            rectangles_img = cv2.polylines(rectangles_img, all_the_points, True, (255, 0, 0), 3)  # type: ignore
     return rectangles_img
 
 
@@ -222,14 +246,16 @@ def run_a_test(img, blocksize, ksize, k):
     circled_corners = make_circles(img, centroids)
     oriented_circled_corners = make_orientation_marks(circled_corners, oriented_corners)
     display(oriented_circled_corners)
+    rectangles = draw_rectangles(img, oriented_corners)
+    display(rectangles)
 
 
 def run_all_the_tests(img):
-    for blocksize in range(3, 10):
+    for blocksize in range(5, 8):
         for ksize in [3, 5, 7]:
-            for k in [0.04, 0.05, 0.06]:
-                run_a_test(img, blocksize, ksize, k)
-                print([blocksize, ksize, k])
+            k = 0.06
+            print([blocksize, ksize, k])
+            run_a_test(img, blocksize, ksize, k)
 
 
 # things that work:
