@@ -1,24 +1,20 @@
 #!/usr/bin/env python
 
-# from example_module import a_function_from_another_module
+# the comments noqa and type: ignore are not relevant they just make flake8 and pylance shut up when they're wrong
 
 from skimage import io  # type: ignore
 from skimage import color  # type: ignore
 import numpy as np
 import matplotlib.pyplot as plt
-
-# from time import time
 import cv2
 
 
-# Make matplotlib figures appear inline in the notebook rather than in a new window
-# %matplotlib inline
 plt.rcParams["figure.figsize"] = (10.0, 8.0)  # set default size of plots
 plt.rcParams["image.interpolation"] = "nearest"
 plt.rcParams["image.cmap"] = "gray"
 
 
-def load(image_path):  # load images in a way that makes most things happy
+def load(image_path):  # load images in a way that makes things happy
     out = io.imread(image_path)
     out = out.astype(np.float64) / 255
     return out
@@ -38,8 +34,8 @@ def make_grayscale(img):  # make the image grayscale, deal with types
 
 def rc_to_xy(coords_list):
     # deal with cv2's inconsistencies
-    # I'm using [row,col] as a convention but sometimes cv2 likes that and sometimes it likes (x,y))
-    # so this  makes [row,col] -> (x,y)
+    # I'm using list [row,col] as a convention but sometimes cv2 likes that and sometimes it likes tuple (x,y)
+    # so this does [row,col] -> (x,y)
     return (int(round(coords_list[1])), int(round(coords_list[0])))
 
 
@@ -94,23 +90,26 @@ def avg_pix_brightness(img, pix_loc, quad_num, radius):
     # it finds the average pixel brightness in a certain radius (taxicab) in a certain quadrant related to a given pixel
     gray_img = make_grayscale(img)
     gray_clamped_img = clamp(gray_img)  # I just want 0s and 1s because the real images are a bit finicky
-    # display(gray_clamped_img)
     total_brightness = 0
     pix_loc_row = int(round(pix_loc[0]))
     pix_loc_col = int(round(pix_loc[1]))
     row_mult = quads[quad_num][0]
     col_mult = quads[quad_num][1]  # setting these up for the loop we're about to run
-    for row in range(radius):
-        for col in range(radius):
-            if row != 0 and col != 0:  # don't include the row and col of the pixel itself because that seems to help
-                check_row = int(pix_loc_row + row * row_mult)
-                check_col = int(pix_loc_col + col * col_mult)  # what [row, col] are we getting the brightness of?
+    img_shape = img.shape
+    img_num_rows = img_shape[0]
+    img_num_cols = img_shape[1]  # these are to deal with index errors in case we try to iterate outside the image
+    for row in range(3, radius + 1):
+        for col in range(3, radius + 1):
+            check_row = int(pix_loc_row + row * row_mult)
+            check_col = int(pix_loc_col + col * col_mult)  # what [row, col] are we getting the brightness of?
+            if check_row >= 0 and check_col >= 0 and check_row < img_num_rows - 1 and check_col < img_num_cols - 1:
+                # if we're inside the image
                 current_brightness = gray_clamped_img[check_row, check_col]
-                total_brightness += current_brightness  # increment as appropriate
-    return total_brightness / (radius**2)  # I asked for average; I don't know if radius^2 is correct but eh it works
+                total_brightness += current_brightness  # increment based on the current pixel
+    return total_brightness / ((radius - 2)**2)  # average
 
 
-def find_corner_orientation(img, corner_loc, radius=10):  # finding which way a corner is pointing
+def find_corner_orientation(img, corner_loc, radius=5):  # finding which way a corner is pointing
     quad_1_brightness = avg_pix_brightness(img, corner_loc, 1, radius)
     quad_2_brightness = avg_pix_brightness(img, corner_loc, 2, radius)
     quad_3_brightness = avg_pix_brightness(img, corner_loc, 3, radius)
@@ -122,13 +121,14 @@ def find_corner_orientation(img, corner_loc, radius=10):  # finding which way a 
 
 
 def find_centroids(harris_result):  # harris gives blobs; I want points
-    step1 = cv2.dilate(harris_result, None, iterations=5)  # type: ignore # makes the blobs bigger/more uniform
-    _, step2 = cv2.threshold(step1, 0.01 * np.max(step1), 255, 0)  # makes it all 0 or 1 because cv2 likes that here
+    # step1 = cv2.dilate(harris_result, None, iterations=5)  # type: ignore # makes the blobs bigger/more uniform
+    # _, step2 = cv2.threshold(step1, 0.01 * np.max(step1), 255, 0)  # makes it all 0 or 1 because cv2 likes that here
+    _, step2 = cv2.threshold(harris_result, 0.01 * np.max(harris_result), 255, 0)  # makes it all 0 or 1 for cv2 reasons
     step3 = np.uint8(step2)  # more fun with image types... ugh
     centroids = cv2.connectedComponentsWithStats(step3)[3]  # type: ignore # finds the centroids of blobs
     # connectedComponentsWithStats actually gives a bunch of information but only [3] is relevant here
     revised_centroids = centroids[1:]  # assume the centroid of the background is first?? (we think)
-    # cv2 is inconsistent yet again so we gotta flip it and make it a list instead of a tuple
+    # cv2 is inconsistent yet again (output is in (x,y) form) so we gotta flip it and make it a list instead of a tuple
     flipped_centroids = [[float(centroid[1]), float(centroid[0])] for centroid in revised_centroids]
     return flipped_centroids
 
@@ -168,53 +168,85 @@ def find_one_rectangle(oriented_centroids, first_corner):  # noqa
     # print(oriented_centroids)
     rectangle = []  # it's just a list of points
     rectangle.append(first_corner)
-    print(first_corner)
-    closest_quad_3 = oriented_centroids[0]  # just give it a value of the correct type
+    # print(first_corner)
+    closest_quad_3 = [0, 0, 0]  # just give it a value of the correct type
     for corner in oriented_centroids:
-        if corner[2] == 3 and closest_quad_3[2] != 3:  # if we don't have a functional quad 3 corner yet
+        if corner[2] == 3:  # if we do have a functional quad 3 corner
             if corner[1] > first_corner[1]:
-                if corner[0] + 2 >= first_corner[0] and corner[0] - 2 <= first_corner[0]:
-                    closest_quad_3 = corner  # make there be a functional quad 3 corner
-        elif corner[2] == 3:  # if we do have one
-            if corner[1] > first_corner[1]:
-                if corner[0] + 2 >= first_corner[0] and corner[0] - 2 <= first_corner[0]:
-                    if corner[0] < closest_quad_3[0]:  # but the current corner is better
-                        closest_quad_3 = corner  # then replace it
-    if closest_quad_3[2] != 3:  # if we couldn't find a single one that works no matter how badly
-        print("couldn't find rectangle: quad 3 missing")
-        print(rectangle)
-        return rectangle  # then stop already
-    rectangle.append(closest_quad_3)  # but otherwise we're fine; add it to the rectangle
-    closest_quad_1 = oriented_centroids[0]  # same process for quad 1 except we're moving down instead of right
+                if corner[0] + 4 >= first_corner[0] and corner[0] - 4 <= first_corner[0]:
+                    if closest_quad_3[0] != 0:
+                        if corner[0] < closest_quad_3[0]:  # but the current corner is better
+                            closest_quad_3 = corner  # then replace it
+                    else:
+                        closest_quad_3 = corner
+    # if closest_quad_3[2] != 3:  # if we couldn't find a single one that works
+        # print("couldn't find rectangle: quad 3 missing")
+        # print(rectangle)
+        # return rectangle  # then stop already
+    if closest_quad_3[0] != 0:
+        rectangle.append(closest_quad_3)  # but otherwise we're fine; add it to the rectangle
+    closest_quad_1 = [0, 0, 0]  # same process for quad 1 except we're moving down instead of right
     for corner in oriented_centroids:
-        if corner[2] == 1 and closest_quad_1[2] != 1:
+        if corner[2] == 1:
             if corner[0] > first_corner[0]:
-                if corner[1] + 2 >= first_corner[1] and corner[1] - 2 <= first_corner[1]:
-                    closest_quad_1 = corner
-        elif corner[2] == 1:
-            if corner[0] > first_corner[0]:
-                if corner[1] + 2 >= first_corner[1] and corner[1] - 2 <= first_corner[1]:
-                    if corner[1] < closest_quad_1[1]:
+                if corner[1] + 4 >= first_corner[1] and corner[1] - 4 <= first_corner[1]:
+                    if closest_quad_1[0] != 0:
+                        if corner[1] < closest_quad_1[1]:
+                            closest_quad_1 = corner
+                    else:
                         closest_quad_1 = corner
-    if closest_quad_1[2] != 1:
-        print("couldn't find rectangle: quad 1 missing")
+    # if closest_quad_1[2] != 1:
+    #     print("couldn't find rectangle: quad 1 missing")
+    #     print(rectangle)
+    #     return rectangle
+    if closest_quad_1[0] != 0:
+        rectangle.append(closest_quad_1)  # etc etc
+    if len(rectangle) < 2:
+        print("no rectangle")
+        return []
+    if len(rectangle) == 3:
+        the_quad_2 = [0, 0, 0]  # there should only be one that works at this point
+        for corner in oriented_centroids:
+            if corner[2] == 2:
+                if corner[0] + 4 >= closest_quad_1[0] and corner[0] - 4 <= closest_quad_1[0]:
+                    if corner[1] + 4 >= closest_quad_3[1] and corner[1] - 4 <= closest_quad_3[1]:
+                        the_quad_2 = corner  # if it's the one, then it's the one
+                        rectangle.append(the_quad_2)
+                        # so we can draw it nicely later
+                        reordered_rectangle = [rectangle[0], rectangle[1], rectangle[3], rectangle[2]]
+                        print("successful rectangle")
+                        print(reordered_rectangle)
+                        return reordered_rectangle
+        print("4 3 1 rectangle")
         print(rectangle)
         return rectangle
-    rectangle.append(closest_quad_1)  # etc etc
-    the_quad_2 = oriented_centroids[0]  # there should only be one that works at this point
-    for corner in oriented_centroids:
-        if corner[2] == 2:
-            if corner[0] + 2 >= closest_quad_1[0] and corner[0] - 2 <= closest_quad_1[0]:
-                if corner[1] + 2 >= closest_quad_3[1] and corner[1] - 2 <= closest_quad_3[1]:
-                    the_quad_2 = corner  # if it's the one, then it's the one
-                    break
-    if the_quad_2[2] != 2:  # same thing here
-        print("couldn't find rectangle: quad 2 missing")
-        print(rectangle)
-        return rectangle
-    rectangle.append(the_quad_2)
-    reordered_rectangle = [rectangle[0], rectangle[1], rectangle[3], rectangle[2]]  # so we can draw it nicely later
-    return reordered_rectangle
+    if len(rectangle) == 2:
+        closest_quad_2 = [0, 0, 0]
+        for corner in oriented_centroids:
+            if corner[2] == 2:
+                if corner[0] > first_corner[0] and corner[1] > first_corner[1]:
+                    if rectangle[1][2] == 3:
+                        if corner[1] + 4 >= rectangle[1][1] and corner[1] - 4 <= rectangle[1][1]:
+                            if closest_quad_2[0] != 0:
+                                if corner[0] < closest_quad_2[0]:
+                                    closest_quad_2 = corner
+                            else:
+                                closest_quad_2 = corner
+                    elif rectangle[1][2] == 1:
+                        if corner[0] + 4 >= rectangle[1][0] and corner[0] - 4 <= rectangle[1][0]:
+                            if closest_quad_2[0] != 0:
+                                if corner[1] < closest_quad_2[1]:
+                                    closest_quad_2 = corner
+                            else:
+                                closest_quad_2 = corner
+        if closest_quad_2[0] != 0:
+            rectangle.append(closest_quad_2)
+            print("4 3 2 or 4 1 2 rectangle")
+            print(rectangle)
+            return rectangle
+    print("4 3 or 4 1 rectangle")
+    print(rectangle)
+    return []
 
 
 def find_all_rectangles(oriented_centroids):  # this is just math, no CV, so we don't need the image
@@ -226,23 +258,44 @@ def find_all_rectangles(oriented_centroids):  # this is just math, no CV, so we 
             if new_rectangle:  # because empty lists are sad and annoying
                 rectangles.append(new_rectangle)
             # remaining_centroids = [point for point in remaining_centroids if point not in new_rectangle]
+    print(rectangles)
     return rectangles
 
 
-def draw_rectangles(img, oriented_centroids):  # let's see where it thinks the rectangles are
+def draw_rectangles(img, rectangles):  # let's see where it thinks the rectangles are
     rectangles_img = np.copy(img)  # ARGHHH NOT AGAIN
-    rectangles = find_all_rectangles(oriented_centroids)
+    green_rectangles = []
+    # rectangles = find_all_rectangles(oriented_centroids)
     for rect in rectangles:
         if len(rect) == 4:  # if it's a rectangle
             tuple_top_left = rc_to_xy(rect[0])
             tuple_bottom_right = rc_to_xy(rect[2])  # then we can just make a rectangle
-            rectangles_img = cv2.rectangle(rectangles_img, tuple_top_left, tuple_bottom_right, (255, 0, 0), 3)
+            if tuple_bottom_right[0] - tuple_top_left[0] <= 100 and tuple_bottom_right[1] - tuple_top_left[1] <= 200:
+                rectangles_img = cv2.rectangle(rectangles_img, tuple_top_left, tuple_bottom_right, (0, 255, 0), 3)
+                green_rectangles.append(rect)
+            else:
+                rectangles_img = cv2.rectangle(rectangles_img, tuple_top_left, tuple_bottom_right, (255, 0, 0), 3)
         if len(rect) == 3:  # if it's a triangle
-            # this line is magic, I don't know why it works, but it's what the documentation did so I won't question it
-            all_the_points = np.array([list(rc_to_xy(point)) for point in rect]).reshape((-1, 1, 2))
-            # polylines just makes a polygon with some points, yay
-            rectangles_img = cv2.polylines(rectangles_img, all_the_points, True, (255, 0, 0), 3)  # type: ignore
-    return rectangles_img
+            rect_quads = [rect[0][2], rect[1][2], rect[2][2]]
+            if rect_quads == [4, 3, 1]:
+                tuple_top_left = rc_to_xy(rect[0])
+                tuple_bottom_right = rc_to_xy([rect[2][0], rect[1][1]])
+                if tuple_bottom_right[0] - tuple_top_left[0] <= 100 and tuple_bottom_right[1] - tuple_top_left[1] <= 200:  # noqa
+                    rectangles_img = cv2.rectangle(rectangles_img, tuple_top_left, tuple_bottom_right, (0, 255, 0), 3)
+                    green_rectangles.append(rect)
+                else:
+                    rectangles_img = cv2.rectangle(rectangles_img, tuple_top_left, tuple_bottom_right, (255, 0, 0), 3)
+                # rectangles_img = cv2.rectangle(rectangles_img, tuple_top_left, tuple_bottom_right, (0, 255, 0), 3)
+            if 4 in rect_quads and 2 in rect_quads:
+                tuple_top_left = rc_to_xy(rect[0])
+                tuple_bottom_right = rc_to_xy(rect[2])
+                if tuple_bottom_right[0] - tuple_top_left[0] <= 100 and tuple_bottom_right[1] - tuple_top_left[1] <= 200:  # noqa
+                    rectangles_img = cv2.rectangle(rectangles_img, tuple_top_left, tuple_bottom_right, (0, 255, 0), 3)
+                    green_rectangles.append(rect)
+                else:
+                    rectangles_img = cv2.rectangle(rectangles_img, tuple_top_left, tuple_bottom_right, (255, 0, 0), 3)
+                # rectangles_img = cv2.rectangle(rectangles_img, tuple_top_left, tuple_bottom_right, (0, 255, 0), 3)
+    return rectangles_img, green_rectangles
 
 
 def run_a_test(img, blocksize, ksize, k):
@@ -251,26 +304,29 @@ def run_a_test(img, blocksize, ksize, k):
     corners = get_corners_and_edges(img, blocksize, ksize, k)[0]
     centroids = find_centroids(corners)
     oriented_corners = centroids_and_orientations(img, centroids)
-    circled_corners = make_circles(img, centroids)
-    oriented_circled_corners = make_orientation_marks(circled_corners, oriented_corners)
-    display(oriented_circled_corners)
-    rectangles = draw_rectangles(img, oriented_corners)
-    display(rectangles)
+    # circled_corners = make_circles(img, centroids)
+    # oriented_circled_corners = make_orientation_marks(circled_corners, oriented_corners)
+    # display(oriented_circled_corners)
+    rectangles = find_all_rectangles(oriented_corners)
+    rectangles_img, green_rectangles = draw_rectangles(img, rectangles)
+    # display(rectangles_img)
+    return green_rectangles
 
 
 def run_all_the_tests(img):
-    for blocksize in range(5, 8):  # this range seems to be good but I haven't narrowed it down further
-        for ksize in [3, 5, 7]:  # same here
+    all_green_rectangles = []
+    for blocksize in range(6, 8):  # this range seems to be good
+        for ksize in [5, 7]:  # same here
             print("----------")
             k = 0.06   # turns out this works well! why? nobody knows...
             print([blocksize, ksize, k])  # so I know what I'm looking at
-            run_a_test(img, blocksize, ksize, k)  # do the thing
+            green_rectangles = run_a_test(img, blocksize, ksize, k)  # do the thing
+            all_green_rectangles += green_rectangles
+    green_rectangles_img = draw_rectangles(img, all_green_rectangles)[0]
+    display(green_rectangles_img)
 
 
 if __name__ == "__main__":
-    image_path = "./my_project/real_shapes.png"
-    image = load(image_path)
-    image_features = colorize_corners_and_edges(image)
-    display(image)
-    display(image_features)
-    display(image + image_features)
+    img_path = "./my_project/column_0043.png"
+    img = load(img_path)
+    run_all_the_tests(img)
