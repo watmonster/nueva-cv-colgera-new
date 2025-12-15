@@ -39,7 +39,7 @@ def rc_to_xy(coords_list):
     return (int(round(coords_list[1])), int(round(coords_list[0])))
 
 
-def corner_detection(img, blocksize=3, ksize=5, k=0.04):  # cornerHarris and helpers
+def corner_detection(img, blocksize, ksize, k):  # cornerHarris and helpers
     gray_img = make_grayscale(img)  # cornerHarris requires grayscale images
     corners = np.copy(gray_img)  # cv2 often changes the image it's given, so we copy so it doesn't overwrite
     cv2.cornerHarris(gray_img, blocksize, ksize, k, corners)  # noqa
@@ -53,7 +53,7 @@ def clamp(img):  # makes images all either 0 or 1, no negatives, no nonsense
     return clamped_img
 
 
-def get_corners_and_edges(img, blocksize=3, ksize=5, k=0.04):
+def get_corners_and_edges(img, blocksize, ksize, k):
     corners = corner_detection(img, blocksize, ksize, k)  # so funny story
     # turns out harris corner detection also runs edge detection
     # but the pixels it identifies as corners are positive, and edges are negative
@@ -63,7 +63,7 @@ def get_corners_and_edges(img, blocksize=3, ksize=5, k=0.04):
     return clamped_corners, clamped_edges
 
 
-def colorize_corners_and_edges(img, blocksize=3, ksize=5, k=0.04):  # for testing/human-readability purposes
+def colorize_corners_and_edges(img, blocksize, ksize, k):  # for testing/human-readability purposes
     corners, edges = get_corners_and_edges(img, blocksize, ksize, k)
     green_blue_image = np.zeros((img.shape[0], img.shape[1], 3), dtype=np.float32)  # make another image
     # dilate makes the corners big so we can see them
@@ -305,6 +305,6 @@ def combine_params(img):
 
 
 if __name__ == "__main__":
-    img_path = "./my_project/column_0043.png"
+    img_path = "./my_project/column_0004.png"
     img = load(img_path)[:, :, 0:3]
     combine_params(img)
