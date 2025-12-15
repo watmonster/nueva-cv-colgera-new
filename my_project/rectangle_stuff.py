@@ -106,7 +106,7 @@ def avg_pix_brightness(img, pix_loc, quad_num, radius):
                 # if we're inside the image
                 current_brightness = gray_clamped_img[check_row, check_col]
                 total_brightness += current_brightness  # increment based on the current pixel
-    return total_brightness / ((radius - 2)**2)  # average
+    return total_brightness / (radius**2)  # average
 
 
 def find_corner_orientation(img, corner_loc, radius=5):  # finding which way a corner is pointing
