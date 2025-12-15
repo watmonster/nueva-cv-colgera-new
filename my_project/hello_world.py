@@ -165,10 +165,8 @@ def find_one_rectangle(oriented_centroids, first_corner):  # noqa
     # go to the right to find a quadrant 3 corner
     # go down from the first corner to find a quadrant 1 corner
     # reference the 2nd and 3rd corners to find the last quad 2 corner
-    # print(oriented_centroids)
     rectangle = []  # it's just a list of points
     rectangle.append(first_corner)
-    # print(first_corner)
     closest_quad_3 = [0, 0, 0]  # just give it a value of the correct type
     for corner in oriented_centroids:
         if corner[2] == 3:  # if we do have a functional quad 3 corner
@@ -179,12 +177,8 @@ def find_one_rectangle(oriented_centroids, first_corner):  # noqa
                             closest_quad_3 = corner  # then replace it
                     else:
                         closest_quad_3 = corner
-    # if closest_quad_3[2] != 3:  # if we couldn't find a single one that works
-        # print("couldn't find rectangle: quad 3 missing")
-        # print(rectangle)
-        # return rectangle  # then stop already
     if closest_quad_3[0] != 0:
-        rectangle.append(closest_quad_3)  # but otherwise we're fine; add it to the rectangle
+        rectangle.append(closest_quad_3)  # we're fine; add it to the rectangle
     closest_quad_1 = [0, 0, 0]  # same process for quad 1 except we're moving down instead of right
     for corner in oriented_centroids:
         if corner[2] == 1:
@@ -195,16 +189,11 @@ def find_one_rectangle(oriented_centroids, first_corner):  # noqa
                             closest_quad_1 = corner
                     else:
                         closest_quad_1 = corner
-    # if closest_quad_1[2] != 1:
-    #     print("couldn't find rectangle: quad 1 missing")
-    #     print(rectangle)
-    #     return rectangle
     if closest_quad_1[0] != 0:
         rectangle.append(closest_quad_1)  # etc etc
-    if len(rectangle) < 2:
-        print("no rectangle")
+    if len(rectangle) < 2:  # if we only have a quad 4 point, or somehow an empty list
         return []
-    if len(rectangle) == 3:
+    if len(rectangle) == 3:  # rectangles only require 3 points but 4 is nice
         the_quad_2 = [0, 0, 0]  # there should only be one that works at this point
         for corner in oriented_centroids:
             if corner[2] == 2:
@@ -212,25 +201,20 @@ def find_one_rectangle(oriented_centroids, first_corner):  # noqa
                     if corner[1] + 4 >= closest_quad_3[1] and corner[1] - 4 <= closest_quad_3[1]:
                         the_quad_2 = corner  # if it's the one, then it's the one
                         rectangle.append(the_quad_2)
-                        # so we can draw it nicely later
                         reordered_rectangle = [rectangle[0], rectangle[1], rectangle[3], rectangle[2]]
-                        print("successful rectangle")
-                        print(reordered_rectangle)
-                        return reordered_rectangle
-        print("4 3 1 rectangle")
-        print(rectangle)
-        return rectangle
-    if len(rectangle) == 2:
+                        return reordered_rectangle  # so we can draw it easily later
+        return rectangle  # if we end up with quads 4, 3, 1
+    if len(rectangle) == 2:  # possibly at this point we can still find a quad 2 and get 3 points for a rectangle
         closest_quad_2 = [0, 0, 0]
         for corner in oriented_centroids:
             if corner[2] == 2:
-                if corner[0] > first_corner[0] and corner[1] > first_corner[1]:
-                    if rectangle[1][2] == 3:
+                if corner[0] > first_corner[0] and corner[1] > first_corner[1]:  # correct positioning
+                    if rectangle[1][2] == 3:  # further steps depend on what info we currently have
                         if corner[1] + 4 >= rectangle[1][1] and corner[1] - 4 <= rectangle[1][1]:
-                            if closest_quad_2[0] != 0:
+                            if closest_quad_2[0] != 0:  # if we already have a quad 2 corner
                                 if corner[0] < closest_quad_2[0]:
                                     closest_quad_2 = corner
-                            else:
+                            else:  # if we don't already have a quad 2 corner then assign it
                                 closest_quad_2 = corner
                     elif rectangle[1][2] == 1:
                         if corner[0] + 4 >= rectangle[1][0] and corner[0] - 4 <= rectangle[1][0]:
@@ -241,11 +225,8 @@ def find_one_rectangle(oriented_centroids, first_corner):  # noqa
                                 closest_quad_2 = corner
         if closest_quad_2[0] != 0:
             rectangle.append(closest_quad_2)
-            print("4 3 2 or 4 1 2 rectangle")
-            print(rectangle)
             return rectangle
-    print("4 3 or 4 1 rectangle")
-    print(rectangle)
+    # sad :( (at this point we have 2 points, rectangles require 3)
     return []
 
 
@@ -258,7 +239,6 @@ def find_all_rectangles(oriented_centroids):  # this is just math, no CV, so we 
             if new_rectangle:  # because empty lists are sad and annoying
                 rectangles.append(new_rectangle)
             # remaining_centroids = [point for point in remaining_centroids if point not in new_rectangle]
-    print(rectangles)
     return rectangles
 
 
@@ -313,13 +293,11 @@ def run_a_test(img, blocksize, ksize, k):
     return green_rectangles
 
 
-def run_all_the_tests(img):
+def combine_params(img):
     all_green_rectangles = []
     for blocksize in range(6, 8):  # this range seems to be good
         for ksize in [5, 7]:  # same here
-            print("----------")
             k = 0.06   # turns out this works well! why? nobody knows...
-            print([blocksize, ksize, k])  # so I know what I'm looking at
             green_rectangles = run_a_test(img, blocksize, ksize, k)  # do the thing
             all_green_rectangles += green_rectangles
     green_rectangles_img = draw_rectangles(img, all_green_rectangles)[0]
@@ -328,5 +306,5 @@ def run_all_the_tests(img):
 
 if __name__ == "__main__":
     img_path = "./my_project/column_0043.png"
-    img = load(img_path)
-    run_all_the_tests(img)
+    img = load(img_path)[:, :, 0:3]
+    combine_params(img)
