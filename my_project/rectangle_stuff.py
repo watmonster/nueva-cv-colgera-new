@@ -299,29 +299,30 @@ def combine_params(img):
         for ksize in [5, 7]:  # same here
             k = 0.06   # turns out this works well! why? nobody knows...
             green_rectangles = run_a_test(img, blocksize, ksize, k)  # do the thing
-            all_green_rectangles += green_rectangles
+            all_green_rectangles += green_rectangles  # keep the good ones from each test run
     green_rectangles_img = draw_rectangles(img, all_green_rectangles)[0]
     display(green_rectangles_img)
     return all_green_rectangles
 
 
-def rects_and_corners(img, blocksize=6, ksize=5, k=0.06):
+def rects_and_corners(img, blocksize=6, ksize=5, k=0.06):  # display detected rectangles and unmatched corners
     corners = get_corners_and_edges(img, blocksize, ksize, k)[0]
     centroids = find_centroids(corners)
-    oriented_corners = centroids_and_orientations(img, centroids)
-    all_green_rectangles = run_a_test(img, blocksize, ksize, k)
-    print(all_green_rectangles)
+    oriented_corners = centroids_and_orientations(img, centroids)  # find the corners and orientations etc
+    all_green_rectangles = run_a_test(img, blocksize, ksize, k)  # this is more convenient for one param set because the exact locations of corners vary  # noqa
+    # make the points in all_green_rectangles into a flattened list (can't do this w/ numpy because shape is not consistent)  # noqa
     green_rectangles_list = [all_green_rectangles[i][j] for i in range(len(all_green_rectangles)) for j in range(len(all_green_rectangles[i]))]  # noqa  # type: ignore
-    print(green_rectangles_list)
+    # find all the corners that aren't in a rectangle
     not_rectangle_corners = [oriented_corners[i] for i in range(len(oriented_corners)) if oriented_corners[i] not in green_rectangles_list]  # noqa
     circled_corners = make_circles(img, not_rectangle_corners)
-    oriented_circled_corners = make_orientation_marks(circled_corners, not_rectangle_corners)
+    oriented_circled_corners = make_orientation_marks(circled_corners, not_rectangle_corners)  # where and how are the corners?  # noqa
     # display(oriented_circled_corners)
-    rectangles_oriented_corners = draw_rectangles(oriented_circled_corners, all_green_rectangles)[0]
+    rectangles_oriented_corners = draw_rectangles(oriented_circled_corners, all_green_rectangles)[0]  # display the found rectangles on top of the nonrectangle corners  # noqa
     display(rectangles_oriented_corners)
 
 
 if __name__ == "__main__":
     img_path = "./my_project/column_0004.png"
     img = load(img_path)[:, :, 0:3]
+    combine_params(img)
     rects_and_corners(img)
